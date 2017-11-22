@@ -226,6 +226,8 @@ html_document <- function(toc = FALSE,
   # table of contents
   args <- c(args, pandoc_toc_args(toc, toc_depth))
 
+  md_extensions <- smart_extension(smart, md_extensions)
+
   # toc_float
   if (toc && !identical(toc_float, FALSE)) {
 
@@ -437,7 +439,7 @@ html_document <- function(toc = FALSE,
   # return format
   output_format(
     knitr = knitr_options_html(fig_width, fig_height, fig_retina, keep_md, dev),
-    pandoc = pandoc_options(to = "html",
+    pandoc = pandoc_options(to = "html4",
                             from = from_rmarkdown(fig_caption, md_extensions),
                             args = args),
     keep_md = keep_md,
@@ -506,8 +508,7 @@ html_highlighters <- function() {
 }
 
 default_mathjax <- function() {
-  paste("https://mathjax.rstudio.com/latest/",
-        mathjax_config(), sep="")
+  paste0("https://mathjax.rstudio.com/latest/", mathjax_config())
 }
 
 mathjax_config <- function() {

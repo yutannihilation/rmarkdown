@@ -351,6 +351,7 @@ discover_rmd_resources <- function(rmd_file, encoding,
 
   # render "raw" markdown to HTML
   html_file <- tempfile(fileext = ".html")
+  on.exit(unlink(html_file), add = TRUE)
 
   # check to see what format this document is going to render as; if it's a
   # format that produces HTML, let it render as-is, but if it isn't, render as
@@ -358,7 +359,7 @@ discover_rmd_resources <- function(rmd_file, encoding,
   output_format <- output_format_from_yaml_front_matter(rmd_content,
                                                         encoding = encoding)
   output_format_function <- eval(parse(text = output_format$name))
-  override_output_format <- if (output_format_function()$pandoc$to == "html")
+  override_output_format <- if (is_pandoc_to_html(output_format_function()$pandoc))
                               NULL
                             else
                               "html_document"
@@ -378,6 +379,7 @@ discover_rmd_resources <- function(rmd_file, encoding,
   # if this is an R Markdown file, purl the file to extract just the R code
   if (tolower(tools::file_ext(rmd_file)) == "rmd") {
     r_file <- tempfile(fileext = ".R")
+    on.exit(unlink(r_file), add = TRUE)
     knitr::purl(md_file, output = r_file, quiet = TRUE, documentation = 0,
                 encoding = "UTF-8")
     temp_files <- c(temp_files, r_file)
@@ -453,7 +455,7 @@ discover_css_resources <- function(css_file, discover_single_resource) {
     discover_single_resource(res_file, FALSE, TRUE)
   }
 
-  call_css_resource_attrs(paste(css_lines, collapse="\n"),
+  call_css_resource_attrs(paste(css_lines, collapse = "\n"),
                                 discover_resource)
 }
 

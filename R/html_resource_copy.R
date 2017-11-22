@@ -2,7 +2,7 @@
 # HTML's dependencies as appropriate and rewrites the HTML to refer to those
 # files. If CSS files are among the dependencies, performs the same operation
 # on each after copying.
-copy_html_resources <- function (html_str, lib_dir, output_dir) {
+copy_html_resources <- function(html_str, lib_dir, output_dir) {
   resource_locator <- function(input_str, resource_copier) {
     call_resource_attrs(input_str, function(node, att, src, idx) {
       # copy the resource if needed
@@ -25,7 +25,7 @@ copy_html_resources <- function (html_str, lib_dir, output_dir) {
   copy_resources(html_str, lib_dir, output_dir, resource_locator)
 }
 
-copy_resources <- function (input_str, lib_dir, output_dir, resource_locator) {
+copy_resources <- function(input_str, lib_dir, output_dir, resource_locator) {
   # ensure the lib directory exists
   dir.create(lib_dir, recursive = TRUE, showWarnings = FALSE)
   relative_lib <- normalized_relative_to(output_dir, lib_dir)
@@ -44,7 +44,7 @@ copy_resources <- function (input_str, lib_dir, output_dir, resource_locator) {
 
       # check to see if it's already in the library (by absolute path)
       res_src <- normalized_relative_to(lib_dir, in_file)
-      if (same_path(res_src, in_file)) {
+      if (same_path(res_src, in_file, mustWork = FALSE)) {
         # not inside the library, copy it there
         target_dir <- if (dirname(in_file) == ".")
           lib_dir

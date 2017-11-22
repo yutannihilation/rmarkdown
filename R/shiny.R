@@ -138,6 +138,8 @@ run <- function(file = "index.Rmd", dir = dirname(file), default_file = NULL,
     else
       render_args$encoding
 
+  if (is.null(render_args$envir)) render_args$envir <- parent.frame()
+
   # determine the runtime of the target file
   target_file <- ifelse(!is.null(file), file, default_file)
   if (!is.null(target_file))
@@ -221,7 +223,13 @@ rmarkdown_shiny_server <- function(dir, file, encoding, auto_reload, render_args
     reactive_file <- if (auto_reload)
       shiny::reactiveFileReader(500, session, file, identity)
     else
-      function () { file }
+      function() { file }
+
+    envir_global <- render_args[['envir']]
+    envir_server <- list2env(list(
+      input = input, output = output, session = session
+    ), parent = envir_global)
+    render_args$envir <- new.env(parent = envir_server)
 
     # when the file loads (or is changed), render to a temporary file, and
     # read the contents into a reactive value
@@ -236,7 +244,7 @@ rmarkdown_shiny_server <- function(dir, file, encoding, auto_reload, render_args
           shiny::addResourcePath(basename(out$resource_folder),
                                  out$resource_folder)
         }
-        return (out$shiny_html)
+        return(out$shiny_html)
       }
 
       # ensure destination directory exists
@@ -273,8 +281,7 @@ rmarkdown_shiny_server <- function(dir, file, encoding, auto_reload, render_args
                                output_dir = dirname(output_dest),
                                output_options = output_opts,
                                intermediates_dir = dirname(output_dest),
-                               runtime = "shiny",
-                               envir = new.env()),
+                               runtime = "shiny"),
                           render_args)
       result_path <- shiny::maskReactiveContext(do.call(render, args))
 
@@ -304,9 +311,28 @@ rmarkdown_shiny_server <- function(dir, file, encoding, auto_reload, render_args
       }
       shinyHTML_with_deps(result_path, dependencies)
     })
-    output$`__reactivedoc__` <- shiny::renderUI({
+
+    doc_ui <- shiny::renderUI({
       doc()
     })
+
+    # For test snapshots. (The snapshotPreprocessOutput function was added
+    # in shiny 1.0.4.)
+    if (exists("snapshotPreprocessOutput", asNamespace("shiny"))) {
+      doc_ui <- shiny::snapshotPreprocessOutput(
+        doc_ui,
+        function(value) {
+          # Since the html data can be very large, just record a hash of it.
+          value$html <- sprintf("[html data sha1: %s]",
+            digest::digest(value$html, algo = "sha1", serialize = FALSE)
+          )
+
+          value
+        }
+      )
+    }
+
+    output$`__reactivedoc__` <- doc_ui
   }
 }
 
@@ -386,7 +412,7 @@ shinyHTML_with_deps <- function(html_file, deps) {
 # given an input file and its encoding, return a list with values indicating
 # whether the input file's Shiny document can be cached and, if so, its cached
 # representation if available
-rmd_cached_output <- function (input, encoding) {
+rmd_cached_output <- function(input, encoding) {
   # init return values
   cacheable <- FALSE
   cached <- FALSE
@@ -429,7 +455,7 @@ rmd_cached_output <- function (input, encoding) {
     # file
     output_dest <- tempfile(fileext = ".html")
   }
-  list (
+  list(
     cacheable = cacheable,
     cached = cached,
     dest = output_dest,
@@ -449,7 +475,7 @@ resolve_relative <- function(dir, relpath) {
   if (nchar(abs.path) <= nchar(dir) + 1)
     return(NULL)
   if (substr(abs.path, 1, nchar(dir)) != dir ||
-        substr(abs.path, nchar(dir)+1, nchar(dir)+1) != '/') {
+        substr(abs.path, nchar(dir) + 1, nchar(dir) + 1) != '/') {
     return(NULL)
   }
   return(abs.path)
@@ -463,8 +489,8 @@ file.path.ci <- function(dir, name) {
   if (!dir_exists(dir))
     return(default)
 
-  matches <- list.files(dir, name, ignore.case=TRUE, full.names=TRUE,
-                        include.dirs=TRUE)
+  matches <- list.files(dir, name, ignore.case = TRUE, full.names = TRUE,
+                        include.dirs = TRUE)
   if (length(matches) == 0)
     return(default)
   return(matches[[1]])
@@ -538,7 +564,7 @@ is_shiny <- function(runtime) {
   !is.null(runtime) && grepl('^shiny', runtime)
 }
 
-is_shiny_classic <-function(runtime) {
+is_shiny_classic <- function(runtime) {
   identical(runtime, "shiny")
 }
 
@@ -546,7 +572,7 @@ is_shiny_prerendered <- function(runtime) {
   identical(runtime, "shiny_prerendered")
 }
 
-write_shiny_deps <- function (files_dir, deps) {
+write_shiny_deps <- function(files_dir, deps) {
   if (!dir_exists(files_dir))
     dir.create(files_dir, recursive = TRUE)
   deps_file <- file.path(files_dir, "dependencies.json")
@@ -554,7 +580,7 @@ write_shiny_deps <- function (files_dir, deps) {
   writeLines(deps_json, deps_file, useBytes = TRUE)
 }
 
-read_shiny_deps <- function (files_dir) {
+read_shiny_deps <- function(files_dir) {
   deps_path <- file.path(files_dir, "dependencies.json")
   if (file.exists(deps_path)) {
     deps_json <- readLines(deps_path, encoding = 'UTF-8')

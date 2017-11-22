@@ -6,7 +6,7 @@ knit_params_get <- function(input_lines, params) {
   if (packageVersion('yaml') < '2.1.14') knit_params <- mark_utf8(knit_params)
   default_params <- list()
   for (param in knit_params) {
-    default_params[[param$name]] <- param$value
+    default_params[param$name] <- list(param$value)
   }
 
   # validate params passed to render
@@ -30,7 +30,7 @@ knit_params_get <- function(input_lines, params) {
     invalid_params <- setdiff(names(params), names(default_params))
     if (length(invalid_params) > 0) {
       stop("render params not declared in YAML: ",
-           paste(invalid_params, sep = ", "))
+           paste(invalid_params, collapse = ", "))
     }
   }
 
@@ -61,7 +61,7 @@ params_value_to_ui <- function(inputControlFn, value, showDefault) {
   } else if (identical(inputControlFn, shiny::textInput)) {
     ## TODO: if long input, maybe truncate textInput values for display
 
-    if (showDefault){
+    if (showDefault) {
       classes <- class(value)
       if ("POSIXct" %in% classes) {
         as.character(value)
@@ -79,17 +79,17 @@ params_value_to_ui <- function(inputControlFn, value, showDefault) {
       value
     }
   } else {
-    if (showDefault){
+    if (showDefault) {
       ## A type/control that doesn't need special handling; just emit the value.
       value
     } else {
-      if (isNumericInput){
+      if (isNumericInput) {
         0
       } else if (identical(inputControlFn, shiny::dateInput)) {
         # Use NA to clear date inputs:
         # https://github.com/rstudio/shiny/pull/1299
         NA
-      } else if (identical(inputControlFn, shiny::radioButtons)){
+      } else if (identical(inputControlFn, shiny::radioButtons)) {
         # As suggested in ?radioButtons
         character(0)
       } else {
@@ -101,11 +101,11 @@ params_value_to_ui <- function(inputControlFn, value, showDefault) {
 
 params_value_from_ui <- function(inputControlFn, value, uivalue) {
   if (identical(inputControlFn, shiny::fileInput)) {
-    uivalue$datapath
+    backup_file_input(uivalue$datapath)
   } else if (identical(inputControlFn, shiny::textInput)) {
     classes <- class(value)
     if ("POSIXct" %in% classes) {
-      if (identical(uivalue, "")){
+      if (identical(uivalue, "")) {
         # show_default: false produces this situation
         # Empty POSIXct
         Sys.time()[-1]
@@ -119,6 +119,18 @@ params_value_from_ui <- function(inputControlFn, value, uivalue) {
     ## A type/control that doesn't need special handling; just emit the value.
     uivalue
   }
+}
+
+# Uploaded files will be deleted when the shiny UI is closed, so we need to back
+# them up to new temp files: https://github.com/rstudio/rmarkdown/issues/919
+backup_file_input <- function(files) {
+  files2 <- files
+  for (i in seq_along(files)) {
+    dir.create(d <- tempfile())
+    files2[i] <- file.path(d, basename(files[i]))
+  }
+  file.copy(files, files2)
+  files2
 }
 
 params_get_input <- function(param) {
@@ -202,7 +214,7 @@ params_configurable <- function(param) {
   if (multiple_ok) {
     return(TRUE)
   }
-  return (length(param$value) <= 1)     # multiple values only when multi-input controls
+  return(length(param$value) <= 1)     # multiple values only when multi-input controls
 }
 
 # Returns a new empty named list.
@@ -307,7 +319,7 @@ knit_params_ask <- function(file = NULL,
           } else if ("selected" %in% inputControlFnFormals) {
             arguments$selected <<- current_value
           }
-        } else if (name == "show_default"){
+        } else if (name == "show_default") {
           # No-op
         } else {
           ## Not a special field. Blindly promote to the input control.
@@ -329,7 +341,7 @@ knit_params_ask <- function(file = NULL,
       unsupported <- setdiff(names(arguments), inputControlFnFormals)
       if (length(unsupported) > 0) {
         inputControl <- shiny::div(class = "form-group",
-                                   tags$label(class="control-label",param$name),
+                                   tags$label(class = "control-label",param$name),
                                    shiny::div(paste('Cannot customize the parameter "', param$name, '" ',
                                                     'because the "', params_get_input(param), '" ',
                                                     'Shiny control does not support: ',

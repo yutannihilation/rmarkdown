@@ -61,7 +61,7 @@ md_document <- function(variant = "markdown_strict",
                         pandoc_args = NULL) {
 
   # base pandoc options for all markdown output
-  args <- c("--standalone")
+  args <- c(if (variant != "markdown" && !preserve_yaml) "--standalone")
 
   # table of contents
   args <- c(args, pandoc_toc_args(toc, toc_depth))
@@ -94,7 +94,8 @@ md_document <- function(variant = "markdown_strict",
     knitr = knitr_options_html(fig_width, fig_height, fig_retina, FALSE, dev),
     pandoc = pandoc_options(to = variant,
                             from = from_rmarkdown(extensions = md_extensions),
-                            args = args),
+                            args = args,
+                            ext = '.md'),
     clean_supporting = FALSE,
     df_print = df_print,
     post_processor = post_processor

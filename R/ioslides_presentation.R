@@ -76,7 +76,7 @@ ioslides_presentation <- function(logo = NULL,
                                list(html_dependency_ioslides()))
 
   # analytics
-  if(!is.null(analytics))
+  if (!is.null(analytics))
     args <- c(args, pandoc_variable_arg("analytics", analytics))
 
   # pre-processor for arguments that may depend on the name of the
@@ -202,8 +202,7 @@ ioslides_presentation <- function(logo = NULL,
 
     # base64 encode if needed
     if (self_contained) {
-      base64_encoder <- base64_image_encoder()
-      slides_lines <- base64_encoder(slides_lines)
+      slides_lines <- base64_image_encode(slides_lines)
     }
 
     # read the output file
@@ -212,7 +211,7 @@ ioslides_presentation <- function(logo = NULL,
     # substitute slides for the sentinel line
     sentinel_line <- grep("^RENDERED_SLIDES$", output_lines)
     if (length(sentinel_line) == 1) {
-      preface_lines <- c(output_lines[1:sentinel_line[1]-1])
+      preface_lines <- c(output_lines[1:sentinel_line[1] - 1])
       suffix_lines <- c(output_lines[-(1:sentinel_line[1])])
       output_lines <- c(preface_lines, slides_lines, suffix_lines)
       writeLines(output_lines, output_file, useBytes = TRUE)
@@ -226,7 +225,7 @@ ioslides_presentation <- function(logo = NULL,
   # return format
   output_format(
     knitr = knitr_options_html(fig_width, fig_height, fig_retina, keep_md, dev),
-    pandoc = pandoc_options(to = "html",
+    pandoc = pandoc_options(to = "html4",
                             from = from_rmarkdown(fig_caption, md_extensions),
                             args = args),
     keep_md = keep_md,

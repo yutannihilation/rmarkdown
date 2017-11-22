@@ -1,5 +1,7 @@
+#' @import stats
+
 createUniqueId <- function(bytes) {
-  paste(as.hexmode(sample(256, bytes)-1), collapse="")
+  paste(as.hexmode(sample(256, bytes) - 1), collapse = "")
 }
 
 is_windows <- function() {
@@ -17,7 +19,7 @@ pandoc_output_file <- function(input, pandoc_options) {
     ext <- pandoc_options$ext
   else if (to %in% c("latex", "beamer"))
     ext <- ".pdf"
-  else if (to %in% c("html", "html5", "s5", "slidy",
+  else if (to %in% c("html", "html4", "html5", "s5", "slidy",
                      "slideous", "dzslides", "revealjs"))
     ext <- ".html"
   else if (grepl("^markdown", to)) {
@@ -120,15 +122,26 @@ file_name_without_shell_chars <- function(file) {
     name
 }
 
+tmpfile_pattern <- "rmarkdown-str"
+
 # return a string as a tempfile
 as_tmpfile <- function(str) {
   if (length(str) > 0) {
-    str_tmpfile <- tempfile("rmarkdown-str", fileext = ".html")
+    str_tmpfile <- tempfile(tmpfile_pattern, fileext = ".html")
     writeLines(str, str_tmpfile, useBytes =  TRUE)
     str_tmpfile
   } else {
     NULL
   }
+}
+
+# temp files created by as_tmpfile() cannot be immediately removed because they
+# are needed later by the pandoc conversion; we have to clean up the temp files
+# that have the pattern specified in `tmpfile_pattern` when render() exits
+clean_tmpfiles <- function() {
+  unlink(list.files(
+    tempdir(), sprintf("^%s[0-9a-f]+[.]html$", tmpfile_pattern), full.names = TRUE
+  ))
 }
 
 dir_exists <- function(x) {
@@ -188,7 +201,7 @@ highlighters <- function() {
     "haddock")
 }
 
-merge_lists <- function (base_list, overlay_list, recursive = TRUE) {
+merge_lists <- function(base_list, overlay_list, recursive = TRUE) {
   if (length(base_list) == 0)
     overlay_list
   else if (length(overlay_list) == 0)
@@ -210,7 +223,7 @@ merge_lists <- function (base_list, overlay_list, recursive = TRUE) {
   }
 }
 
-strip_white <- function (x)
+strip_white <- function(x)
 {
   if (!length(x))
     return(x)
@@ -227,14 +240,14 @@ strip_white <- function (x)
   x
 }
 
-is_blank <- function (x)
+is_blank <- function(x)
 {
   if (length(x))
     all(grepl("^\\s*$", x))
   else TRUE
 }
 
-trim_trailing_ws <- function (x) {
+trim_trailing_ws <- function(x) {
   sub("\\s+$", "", x)
 }
 
@@ -250,6 +263,11 @@ base_dir <- function(x) {
   }
 
   base
+}
+
+move_dir <- function(from, to) {
+  dir.create(dirname(to), showWarnings = FALSE)
+  file.rename(from, to)
 }
 
 # Check if two paths are the same after being normalized
@@ -273,7 +291,7 @@ find_program <- function(program) {
       # and escapes in the path itself
       sanitized_path <- gsub("\\", "\\\\", Sys.getenv("PATH"), fixed = TRUE)
       sanitized_path <- gsub("\"", "\\\"", sanitized_path, fixed = TRUE)
-      system(paste("PATH=\"", sanitized_path, "\" /usr/bin/which ", program, sep=""),
+      system(paste0("PATH=\"", sanitized_path, "\" /usr/bin/which ", program),
              intern = TRUE)
     })
     if (length(res) == 0)
@@ -356,7 +374,9 @@ latexmk_emu <- function(file, engine, biblatex = FALSE) {
   # generate index
   idx <- sub('[.]tex$', '.idx', file)
   if (file.exists(idx)) {
-    system2_quiet(find_latex_engine('makeindex'), shQuote(idx))
+    system2_quiet(find_latex_engine('makeindex'), shQuote(idx), error = {
+      stop("Failed to build the index via makeindex", call. = FALSE)
+    })
   }
   # generate bibliography
   if (biblatex) {
@@ -368,10 +388,30 @@ latexmk_emu <- function(file, engine, biblatex = FALSE) {
   }
   aux <- sub('[.]tex$', aux_ext, file)
   if (file.exists(aux)) {
-    system2_quiet(find_latex_engine(bib_engine), shQuote(aux))
+    if (biblatex || require_bibtex(aux))
+      system2_quiet(find_latex_engine(bib_engine), shQuote(aux), error = {
+        stop("Failed to build the bibliography via ", bib_engine, call. = FALSE)
+      })
   }
   run_engine()
   run_engine()
+}
+
+require_bibtex <- function(aux) {
+  x <- readLines(aux)
+  r <- length(grep('^\\\\citation\\{', x)) && length(grep('^\\\\bibdata\\{', x)) &&
+    length(grep('^\\\\bibstyle\\{', x))
+  if (r && is_windows()) tweak_aux(aux, x)
+  r
+}
+
+# remove the .bib extension in \bibdata{} in the .aux file, because bibtex on
+# Windows requires no .bib extension (sigh)
+tweak_aux <- function(aux, x = readLines(aux)) {
+  r <- '^\\\\bibdata\\{.+\\}\\s*$'
+  if (length(i <- grep(r, x)) == 0) return()
+  x[i] = gsub('[.]bib([,}])', '\\1', x[i])
+  writeLines(x, aux)
 }
 
 system2_quiet <- function(..., error = NULL) {
@@ -597,3 +637,19 @@ shell_exec <- function(cmd, intern = FALSE, wait = TRUE, ...) {
     system(cmd, intern = intern, wait = wait, ...)
 }
 
+# Adjust the graphical device in chunk options: if the device from the output
+# format is png but knitr's global chunk option is not png, respect knitr's
+# option, because (1) users may knitr::opts_chunk$set(dev) (which usually means
+# they know what they are doing) before rmarkdown::render(), and we probably
+# should not override the user's choice; (2) the png device does not work on
+# certain platforms (e.g. headless servers without X11), in which case knitr
+# will set the device to svg instead of png by default in knitr:::set_html_dev,
+# and rmarkdown should also respect this setting, otherwise we will run into
+# issues like https://github.com/rstudio/rmarkdown/issues/1100
+adjust_dev <- function(opts) {
+  dev <- knitr::opts_chunk$get('dev')
+  if (identical(opts$dev, 'png') && length(dev) == 1 && dev != 'png') {
+    opts$dev <- dev
+  }
+  opts
+}

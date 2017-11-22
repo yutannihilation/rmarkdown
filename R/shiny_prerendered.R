@@ -37,8 +37,8 @@ shiny_prerendered_app <- function(input_rmd, encoding, render_args) {
   }
 
   # extract the server context
-  server_context <- shiny_prerendered_extract_context(html_lines, "server")
-  server_envir$.server_context <- server_context
+  .server_context <- shiny_prerendered_extract_context(html_lines, "server")
+  server_envir$.server_context <- .server_context
   server <- function(input, output, session) {
     eval(parse(text = .server_context))
   }
@@ -77,6 +77,9 @@ shiny_prerendered_html <- function(input_rmd, encoding, render_args) {
   prerender_option <- tolower(Sys.getenv("RMARKDOWN_RUN_PRERENDER", "1"))
 
   if (file.access(output_dir, 2) != 0) {
+    if (!file.exists(rendered_html))
+      stop("Unable to write prerendered HTML file to ", rendered_html)
+
     prerender <- FALSE
   }
   else if (identical(prerender_option, "0")) {
@@ -120,11 +123,12 @@ shiny_prerendered_html <- function(input_rmd, encoding, render_args) {
   if (prerender) {
 
     # execute the render
-    args <- merge_lists(list(input = input_rmd,
-                             encoding = encoding,
-                             envir = new.env()),
-                        render_args)
+    args <- merge_lists(list(input = input_rmd, encoding = encoding), render_args)
     rendered_html <- do.call(render, args)
+  }
+
+  if (!file.exists(rendered_html)) {
+    stop("Prerendered HTML file not found at ", rendered_html)
   }
 
   # normalize paths
@@ -219,7 +223,7 @@ shiny_prerendered_append_dependencies <- function(input, # always UTF-8
   dependencies <- dependencies[!sapply(dependencies, is.null)]
 
   # append them to the file (guarnateed to be UTF-8)
-  con <- file(input, open="at", encoding = "UTF-8")
+  con <- file(input, open = "at", encoding = "UTF-8")
   on.exit(close(con), add = TRUE)
 
   # write deps to connection
@@ -490,7 +494,7 @@ shiny_prerendered_append_contexts <- function(runtime, file, encoding) {
     }
 
     # open the file
-    con <- file(file, open="at", encoding = encoding)
+    con <- file(file, open = "at", encoding = encoding)
     on.exit(close(con), add = TRUE)
 
     # track singletons
@@ -511,7 +515,7 @@ shiny_prerendered_append_contexts <- function(runtime, file, encoding) {
         if (found_singleton)
           next
         else
-          singletons[[length(singletons)+1]] <- context
+          singletons[[length(singletons) + 1]] <- context
       }
 
       # append context

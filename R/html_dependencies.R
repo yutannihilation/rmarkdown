@@ -35,7 +35,7 @@ html_dependency_bootstrap <- function(theme) {
                    "shim/html5shiv.min.js",
                    "shim/respond.min.js"
                  ),
-                 stylesheet = paste("css/", theme, ".min.css", sep=""))
+                 stylesheet = paste0("css/", theme, ".min.css"))
 }
 
 # create an html_dependency for our embedded jqueryui
@@ -67,7 +67,7 @@ html_dependency_navigation <- function(code_menu, source_embed) {
   if (code_menu)
     script <- c(script, "codefolding.js")
   if (source_embed)
-    script <- c(script, "FileSaver.min.js", "sourceembed.js")
+    script <- c(script, "sourceembed.js")
 
   htmlDependency(name = "navigation",
                  version = "1.1",
@@ -107,12 +107,12 @@ navbar_icon_dependencies <- function(navbar) {
   source <- readLines(navbar)
 
   # find icon references
-  res <- regexec('<span class="(fa fa|ion ion)-', source)
+  res <- regexec('<(span|i) +class *= *("|\') *(fa fa|ion ion)-', source)
   matches <- regmatches(source, res)
   libs <- c()
   for (match in matches) {
     if (length(match) > 0)
-      libs <- c(libs, match[[2]])
+      libs <- c(libs, match[[4]])
   }
   libs <- unique(libs)
 
@@ -268,8 +268,8 @@ html_dependency_pagedtable <- function() {
 html_dependency_highlightjs <- function(highlight) {
   htmlDependency(
     "highlightjs",
-    version = "1.1",
-    src = rmarkdown_system_file("rmd/h/highlightjs-1.1"),
+    version = "9.12.0",
+    src = rmarkdown_system_file("rmd/h/highlightjs"),
     script = "highlight.js",
     stylesheet = paste0(highlight, ".css")
   )

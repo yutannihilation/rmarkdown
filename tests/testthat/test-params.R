@@ -4,18 +4,29 @@ test_that("setting of params works", {
 
   skip_on_cran()
 
-  params_sample <- '---\ntitle: "test"\noutput: html_document\nparams:\n  field1:\n    value: "defaulthere"\n---'
+  params_sample <- '---\ntitle: "test"\noutput: html_document\nparams:\n  field1:\n    value: "defaulthere"\n  field2: null\n  field3: \n  field4: NULL\n---'
 
   # No overrides
   params <- knit_params_get(params_sample, NULL)
   expect_equal(params$field1, "defaulthere")
+  expect_null(params$field2)
+  expect_null(params$field3)
+  expect_null(params$field4)
 
   # With overrides
-  params <- knit_params_get(params_sample, list(field1="new value"))
+  params <- knit_params_get(params_sample, list(field1 = "new value"))
   expect_equal(params$field1, "new value")
+
+  # With overrides for NULL/null/empty params
+  params <- knit_params_get(params_sample, list(field2 = NULL,field4 = "value"))
+  expect_null(params$field2)
+  expect_equal(params$field4, "value")
 
   # Invalid
   expect_error(knit_params_get(params_sample, "new value"))
+
+  # Params not declared in YAML
+  expect_error(knit_params_get(params_sample, list(field5 = "a",field6 = "b",field7 = NULL)), regexp = "field5, field6, field7$")
 })
 
 test_that("params render their UI", {
@@ -42,7 +53,7 @@ test_that("params render their UI", {
   expect_equal(ui, 0)
 
   # Everything else is a passthrough
-  myobj <- list(a=123, b=NULL, c="huh")
+  myobj <- list(a = 123, b = NULL, c = "huh")
   ui <- params_value_to_ui(NULL, myobj, TRUE)
   expect_equal(ui, myobj)
 })
@@ -73,7 +84,7 @@ test_that("params hidden w/o show_default", {
   expect_equal(ui, 0)
 
   # Everything else is scrubbed
-  myobj <- list(a=123, b=NULL, c="huh")
+  myobj <- list(a = 123, b = NULL, c = "huh")
   ui <- params_value_to_ui(function(){}, myobj, FALSE)
   expect_equal(ui, NULL)
 })
